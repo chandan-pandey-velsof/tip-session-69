@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Random Dog - TriangleIP</title>
+  <link rel="stylesheet" href="/static/tip_design.css" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/htm@3/dist/htm.umd.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const { useState, useEffect, useRef } = React;
+    const html = htm.bind(React.createElement);
+    const USER_REQUEST = "Build a \"Random Dog\" page with a button \"New Dog\". On click, call the dogs connection's GET /api/breeds/image/random \u2014 the response is { \"message\": \"<image url>\", \"status\": \"success\" }. Show the image from message in a card. Loading state + error card. Real data only. Include the Diagnostics panel.";
+
+    function App() {
+      const [dogUrl, setDogUrl] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState(null);
+      const [apiCalls, setApiCalls] = useState([]);
+
+      async function callTip(method, path, opts, meta) {
+        const res = await fetch(path, { method, ...(opts || {}) });
+        const raw = await res.text();
+        let body;
+        try { body = JSON.parse(raw); } catch { body = raw; }
+        setApiCalls(prev => prev.concat([{
+          method,
+          path,
+          status: res.status,
+          ok: res.ok,
+          input: (meta && meta.input) || null,
+          output: meta && meta.output ? meta.output(body) : body,
+          mapping: (meta && meta.mapping) || null,
+        }]));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return body;
+      }
+
+      async function fetchDog() {
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await callTip('GET', '/api/dogs/breeds/image/random', null, {
+            input: { endpoint: '/api/breeds/image/random', method: 'GET', params: 'none' },
+            output: function(body) {
+              return {
+                message: body.message || null,
+                status: body.status || null
+              };
+            },
+            mapping: 'response.message -> Dog image URL displayed in card'
+          });
+          if (data && data.message) {
+            setDogUrl(data.message);
+          } else {
+            setError('No image URL returned from the API.');
+          }
+        } catch (err) {
+          setError('Failed to fetch a random dog: ' + err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      return html`
+        <div className="tip-page">
+          <nav className="tip-navbar">
+            <a className="tip-navbar-brand" href="/">TriangleIP</a>
+          </nav>
+
+          <h1 className="tip-page-title">Random Dog</h1>
+
+          <div style=${{ maxWidth: '600px', margin: '0 auto' }}>
+            <div className="tip-card" style=${{ textAlign: 'center', padding: '2rem' }}>
+              <p style=${{ color: 'var(--tip-text-secondary)', marginBottom: '1.5rem' }}>
+                Click the button below to fetch a random dog image from the Dog CEO API.
+              </p>
+
+              <button
+                className="tip-btn tip-btn-primary"
+                onClick=${fetchDog}
+                disabled=${loading}
+                style=${{ marginBottom: '1.5rem' }}
+              >
+                ${loading ? 'Loading...' : 'New Dog'}
+              </button>
+
+              ${loading && html`
+                <div className="tip-card" style=${{ padding: '2rem', textAlign: 'center' }}>
+                  <p style=${{ color: 'var(--tip-text-secondary)' }}>Fetching a good boy...</p>
+                </div>
+              `}
+
+              ${error && html`
+                <div className="tip-card" style=${{ padding: '1.5rem', borderLeft: '4px solid var(--tip-error, #e74c3c)' }}>
+                  <p style=${{ color: 'var(--tip-error, #e74c3c)', fontWeight: 600, marginBottom: '0.25rem' }}>Error</p>
+                  <p style=${{ color: 'var(--tip-text-secondary)' }}>${error}</p>
+                </div>
+              `}
+
+              ${!loading && !error && dogUrl && html`
+                <div className="tip-card" style=${{ padding: '1rem' }}>
+                  <img
+                    src=${dogUrl}
+                    alt="Random dog"
+                    style=${{ width: '100%', maxHeight: '500px', objectFit: 'cover', borderRadius: '8px' }}
+                  />
+                </div>
+              `}
+
+              ${!loading && !error && !dogUrl && html`
+                <div className="tip-card" style=${{ padding: '2rem', textAlign: 'center' }}>
+                  <p style=${{ color: 'var(--tip-text-secondary)', fontSize: '3rem', marginBottom: '0.5rem' }}>🐾</p>
+                  <p style=${{ color: 'var(--tip-text-secondary)' }}>No dog loaded yet. Hit "New Dog" to get started!</p>
+                </div>
+              `}
+            </div>
+          </div>
+
+          <div className="tip-card" style=${{ marginTop: '2rem' }}>
+            <details>
+              <summary style=${{ cursor: 'pointer', fontWeight: 600, fontSize: '1rem' }}>Diagnostics</summary>
+              <div style=${{ marginTop: '1rem' }}>
+                <div className="tip-table-wrap">
+                  <table className="tip-table">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style=${{ fontWeight: 600 }}>Request</td>
+                        <td>${USER_REQUEST}</td>
+                      </tr>
+                      <tr>
+                        <td style=${{ fontWeight: 600 }}>API Calls</td>
+                        <td>
+                          ${apiCalls.length === 0 && html`<span style=${{ color: 'var(--tip-text-secondary)' }}>No API calls yet</span>`}
+                          ${apiCalls.length > 0 && apiCalls.map((call, i) => html`
+                            <div key=${i} style=${{ marginBottom: i < apiCalls.length - 1 ? '1rem' : '0' }}>
+                              <div style=${{ marginBottom: '0.25rem' }}>
+                                <span className="tip-tag ${call.ok ? 'tip-tag-success' : 'tip-tag-error'}" style=${{ marginRight: '0.5rem' }}>${call.method} ${call.status}</span>
+                                <code style=${{ fontSize: '0.85rem' }}>${call.path}</code>
+                              </div>
+                              ${call.input && html`
+                                <div style=${{ fontSize: '0.85rem', color: 'var(--tip-text-secondary)', marginBottom: '0.25rem' }}>
+                                  <strong>Input:</strong> ${JSON.stringify(call.input)}
+                                </div>
+                              `}
+                              ${call.output && html`
+                                <div style=${{ fontSize: '0.85rem', color: 'var(--tip-text-secondary)', marginBottom: '0.25rem' }}>
+                                  <strong>Output:</strong> ${JSON.stringify(call.output)}
+                                </div>
+                              `}
+                              ${call.mapping && html`
+                                <div style=${{ fontSize: '0.85rem', color: 'var(--tip-text-secondary)' }}>
+                                  <strong>Field Mapping:</strong> ${call.mapping}
+                                </div>
+                              `}
+                            </div>
+                          `)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      `;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+  </script>
+</body>
+</html>
